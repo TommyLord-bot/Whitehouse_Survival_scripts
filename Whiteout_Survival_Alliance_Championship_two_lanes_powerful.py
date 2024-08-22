@@ -183,8 +183,21 @@ def load_players():
     try:
         with open("players.dat", "rb") as file:
             players = pickle.load(file)
+
+        # Remove duplicates from players dictionary
+        seen_names = set()
+        unique_players = {}
+
+        for name, (power, lane) in players.items():
+            if name not in seen_names:
+                seen_names.add(name)
+                unique_players[name] = (power, lane)
+            else:
+                print(f"Duplicate player found and removed: {name}")
+
         print("Player list loaded successfully.")
-        return players
+        return unique_players
+
     except FileNotFoundError:
         print("No existing player data found.")
         return {}
