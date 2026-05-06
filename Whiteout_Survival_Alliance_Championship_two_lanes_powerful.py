@@ -1,9 +1,10 @@
 import pickle  # For serialization of the players list
 
 
-# Function to calculate the total power of a lane
+# Function to calculate the total power of a lane (Only top 20 count)
 def total_power(lane):
-    return sum(player[1] for player in lane)
+    # Since lanes are sorted, we just take the first 20
+    return sum(player[1] for player in lane[:20])
 
 
 # Redistribute players to balance power between lanes 1 and 3
@@ -13,12 +14,17 @@ def redistribute_players(lanes):
     new_lanes = [[], [], []]
 
     for player in sorted_players:
+        # Balancing logic based on the top-20 power rule
         if len(new_lanes[0]) < 20 and total_power(new_lanes[0]) <= total_power(new_lanes[2]):
             new_lanes[0].append(player)
         elif len(new_lanes[2]) < 20:
             new_lanes[2].append(player)
         else:
             new_lanes[1].append(player)
+
+    # Sort each lane by power descending after redistribution
+    for lane in new_lanes:
+        lane.sort(key=lambda x: x[1], reverse=True)
 
     return new_lanes
 
@@ -42,6 +48,7 @@ def fill_lane(players, lanes):
                 break
 
             matching_names = find_players_by_partial_name(partial_name, players)
+
             if len(matching_names) == 0:
                 print(f"No players found with partial name '{partial_name}'.")
                 add_new_player = input(
@@ -66,31 +73,47 @@ def fill_lane(players, lanes):
                 lane = lane_number
                 players[full_name] = (power, lane)
                 lanes[lane - 1].append((full_name, power, lane))
-                print(f"Player {full_name} added to lane {lane_number}.")
+
             elif len(matching_names) == 1:
-                full_name = matching_names[0]
-                print(f"Found player '{full_name}'. Using this player.")
-                power = int(input(f"Enter power for player '{full_name}': "))
+                found_name = matching_names[0]
+                print(f"Found player '{found_name}'.")
+
+                power_input = int(
+                    input(f"Enter power for '{found_name}' (or -1 to add '{partial_name}' as a new player): "))
+
+                if power_input == -1:
+                    full_name = partial_name
+                    power = int(input(f"Enter power for NEW player '{full_name}': "))
+                else:
+                    full_name = found_name
+                    power = power_input
+
                 lane = lane_number
                 players[full_name] = (power, lane)
                 lanes[lane - 1].append((full_name, power, lane))
-                print(f"Player {full_name} added to lane {lane_number}.")
+
             else:
                 print("Multiple players found:")
                 for i, name in enumerate(matching_names, start=1):
                     print(f"{i}. {name}")
-                choice = int(input("Enter the number of the player you want to use: "))
-                if 1 <= choice <= len(matching_names):
+                choice = int(input("Enter the number of the player you want to use (or 0 to add a new player): "))
+
+                if choice == 0:
+                    full_name = partial_name
+                    power = int(input(f"Enter power for NEW player '{full_name}': "))
+                elif 1 <= choice <= len(matching_names):
                     full_name = matching_names[choice - 1]
-                    print(f"Using player '{full_name}'.")
                     power = int(input(f"Enter power for player '{full_name}': "))
-                    lane = lane_number
-                    players[full_name] = (power, lane)
-                    lanes[lane - 1].append((full_name, power, lane))
-                    print(f"Player {full_name} added to lane {lane_number}.")
                 else:
                     print("Invalid choice. Please try again.")
+                    continue
 
+                lane = lane_number
+                players[full_name] = (power, lane)
+                lanes[lane - 1].append((full_name, power, lane))
+
+            lanes[lane_number - 1].sort(key=lambda x: x[1], reverse=True)
+            print(f"Player {full_name} added to lane {lane_number} (Sorted by power).")
             save_players(players)
 
     except ValueError:
@@ -137,7 +160,40 @@ def change_player_name(players, lanes):
         print("Invalid input. Please enter a valid number.")
 
 
-# Function to remove a player
+def change_player_power(players, lanes):
+    try:
+        partial_name = input("Enter player name to change power: ")
+        matching_names = find_players_by_partial_name(partial_name, players)
+
+        if len(matching_names) == 0:
+            print(f"No players found with partial name '{partial_name}'.")
+        else:
+            if len(matching_names) == 1:
+                target_name = matching_names[0]
+            else:
+                print("Multiple players found:")
+                for i, name in enumerate(matching_names, start=1):
+                    print(f"{i}. {name}")
+                choice = int(input("Enter the number of the player: "))
+                target_name = matching_names[choice - 1]
+
+            new_power = int(input(f"Enter new power for {target_name}: "))
+            old_power, lane = players[target_name]
+            players[target_name] = (new_power, lane)
+
+            for idx, player in enumerate(lanes[lane - 1]):
+                if player[0] == target_name:
+                    lanes[lane - 1][idx] = (target_name, new_power, lane)
+
+            if 1 <= lane <= 3:
+                lanes[lane - 1].sort(key=lambda x: x[1], reverse=True)
+
+            print(f"Power for {target_name} updated to {new_power}. Lane re-sorted.")
+            save_players(players)
+    except (ValueError, IndexError):
+        print("Invalid input.")
+
+
 def remove_player(players, lanes):
     try:
         partial_name = input("Enter player name to remove: ")
@@ -209,13 +265,16 @@ def display_menu():
     print("1. Fill lane")
     print("2. Remove player")
     print("3. Change player name")
-    print("4. Save player list")
-    print("5. Load player list")
-    print("6. Show lanes and total power")
-    print("7. Exit")
+    print("4. Change player power")
+    print("5. Show number of players in each lane")
+    print("6. Clear lanes (keep player data)")
+    print("7. Save player list")
+    print("8. Load player list")
+    print("9. Show current lanes (Top 20 Power Cap)")
+    print("10. Show lanes and total power (Redistributed/Balanced)")
+    print("11. Exit")
 
 
-# Main program loop
 def main():
     players = load_players()  # Load players from file at start
     lanes = [[] for _ in range(3)]
@@ -223,7 +282,11 @@ def main():
 
     # Distribute players into initial lanes
     for player, (power, lane) in players.items():
-        lanes[lane - 1].append((player, power, lane))
+        if 1 <= lane <= 3:
+            lanes[lane - 1].append((player, power, lane))
+
+    for lane in lanes:
+        lane.sort(key=lambda x: x[1], reverse=True)
 
     while True:
         display_menu()
@@ -236,23 +299,44 @@ def main():
         elif choice == "3":
             change_player_name(players, lanes)
         elif choice == "4":
-            save_players(players)
+            change_player_power(players, lanes)
         elif choice == "5":
+            print("\nPlayer Counts:")
+            for i, lane in enumerate(lanes):
+                print(f"Lane {i + 1}: {len(lane)} players")
+        elif choice == "6":
+            lanes = [[] for _ in range(3)]
+            for name in players:
+                p_power, p_lane = players[name]
+                players[name] = (p_power, 0)
+            print("Lanes cleared. Player data preserved.")
+        elif choice == "7":
+            save_players(players)
+        elif choice == "8":
             players = load_players()
             lanes = [[] for _ in range(3)]
             for player, (power, lane) in players.items():
-                lanes[lane - 1].append((player, power, lane))
-        elif choice == "6":
+                if 1 <= lane <= 3:
+                    lanes[lane - 1].append((player, power, lane))
+            for lane in lanes:
+                lane.sort(key=lambda x: x[1], reverse=True)
+        elif choice == "9":
+            print("\nCurrent Lane Assignments (Top 20 Power counted):")
+            for i, lane in enumerate(lanes):
+                pwr = total_power(lane)
+                count = len(lane)
+                print(f"Lane {i + 1}: {[(p[0], p[1]) for p in lane]} | Count: {count} | Top 20 Power: {pwr}")
+        elif choice == "10":
             new_lanes = redistribute_players(lanes)
             for i, lane in enumerate(new_lanes):
-                print(f"Lane {i + 1}: {[(p[0], p[1], p[2]) for p in lane]} with total power: {total_power(lane)}")
-            print("\nReserves: ", [(p[0], p[1], p[2]) for p in reserves])
-        elif choice == "7":
+                pwr = total_power(lane)
+                print(f"Lane {i + 1}: {[(p[0], p[1]) for p in lane]} | Top 20 Power: {pwr}")
+        elif choice == "11":
             print("Exiting program.")
-            save_players(players)  # Save players before exiting
+            save_players(players)
             break
         else:
-            print("Invalid choice. Please enter a number from 1 to 7.")
+            print("Invalid choice. Please enter a number from 1 to 11.")
 
 
 if __name__ == "__main__":
