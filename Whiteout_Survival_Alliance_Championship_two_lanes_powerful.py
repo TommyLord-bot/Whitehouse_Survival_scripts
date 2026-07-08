@@ -1,4 +1,57 @@
+import os
 import pickle  # For serialization of the players list
+
+
+DEFAULT_PLAYER_FILE = "players.dat"
+CURRENT_PLAYER_FILE = DEFAULT_PLAYER_FILE
+
+
+def list_player_data_files():
+    return sorted(
+        [
+            name for name in os.listdir(".")
+            if os.path.isfile(name) and name.lower().endswith(".dat")
+        ]
+    )
+
+
+def normalize_player_file_name(file_name):
+    normalized = file_name.strip()
+    if "" == normalized:
+        normalized = DEFAULT_PLAYER_FILE
+    if not normalized.lower().endswith(".dat"):
+        normalized += ".dat"
+    return normalized
+
+
+def choose_player_data_file():
+    while True:
+        available_files = list_player_data_files()
+
+        print("\n--- Player Data Files ---")
+        if 0 == len(available_files):
+            print("No .dat files found in current folder.")
+        else:
+            for i, file_name in enumerate(available_files, start=1):
+                print(f"{i}. {file_name}")
+
+        print("N. Create or choose by new file name")
+        choice = input("Select file number or N: ").strip()
+
+        if choice.lower() == "n":
+            new_file = input("Enter player file name (blank for players.dat): ")
+            selected_file = normalize_player_file_name(new_file)
+            print(f"Selected player file: {selected_file}")
+            return selected_file
+
+        if choice.isdigit():
+            index = int(choice)
+            if 1 <= index <= len(available_files):
+                selected_file = available_files[index - 1]
+                print(f"Selected player file: {selected_file}")
+                return selected_file
+
+        print("Invalid choice. Please try again.")
 
 
 # Function to calculate the total power of a lane (Only top 20 count)
@@ -244,15 +297,15 @@ def remove_player(players, lanes):
 
 # Function to save the players list to a file
 def save_players(players):
-    with open("players.dat", "wb") as file:
+    with open(CURRENT_PLAYER_FILE, "wb") as file:
         pickle.dump(players, file)
-    print("Player list saved successfully.")
+    print(f"Player list saved successfully to '{CURRENT_PLAYER_FILE}'.")
 
 
 # Function to load the players list from a file
 def load_players():
     try:
-        with open("players.dat", "rb") as file:
+        with open(CURRENT_PLAYER_FILE, "rb") as file:
             players = pickle.load(file)
 
         # Remove duplicates from players dictionary
@@ -266,11 +319,11 @@ def load_players():
             else:
                 print(f"Duplicate player found and removed: {name}")
 
-        print("Player list loaded successfully.")
+        print(f"Player list loaded successfully from '{CURRENT_PLAYER_FILE}'.")
         return unique_players
 
     except FileNotFoundError:
-        print("No existing player data found.")
+        print(f"No existing player data found in '{CURRENT_PLAYER_FILE}'. Starting with empty list.")
         return {}
 
 
@@ -291,6 +344,9 @@ def display_menu():
 
 
 def main():
+    global CURRENT_PLAYER_FILE
+    CURRENT_PLAYER_FILE = choose_player_data_file()
+
     players = load_players()
     lanes = [[] for _ in range(3)]
     last_redistribution = None
