@@ -8,21 +8,24 @@ def total_power(lane):
 
 
 # Redistribute players to balance power between lanes 1 and 3
-def redistribute_players(lanes):
+def redistribute_players(lanes, mode="2-1-2"):
     players_list = [player for lane in lanes for player in lane]
     sorted_players = sorted(players_list, key=lambda x: x[1], reverse=True)
     new_lanes = [[], [], []]
 
     for player in sorted_players:
-        # Balancing logic based on the top-20 power rule
-        if len(new_lanes[0]) < 20 and total_power(new_lanes[0]) <= total_power(new_lanes[2]):
-            new_lanes[0].append(player)
-        elif len(new_lanes[2]) < 20:
-            new_lanes[2].append(player)
+        # player structure is (name, power, original_lane)
+        if mode == "1-1-1":
+            target_lane = min(range(3), key=lambda i: total_power(new_lanes[i]))
+            new_lanes[target_lane].append(player)
         else:
-            new_lanes[1].append(player)
+            if len(new_lanes[0]) < 20 and total_power(new_lanes[0]) <= total_power(new_lanes[2]):
+                new_lanes[0].append(player)
+            elif len(new_lanes[2]) < 20:
+                new_lanes[2].append(player)
+            else:
+                new_lanes[1].append(player)
 
-    # Sort each lane by power descending after redistribution
     for lane in new_lanes:
         lane.sort(key=lambda x: x[1], reverse=True)
 
@@ -89,6 +92,12 @@ def fill_lane(players, lanes):
                     power = power_input
 
                 lane = lane_number
+                if full_name in players:
+                    old_power, old_lane = players[full_name]
+                    if 1 <= old_lane <= 3:
+                        old_entry = (full_name, old_power, old_lane)
+                        if old_entry in lanes[old_lane - 1]:
+                            lanes[old_lane - 1].remove(old_entry)
                 players[full_name] = (power, lane)
                 lanes[lane - 1].append((full_name, power, lane))
 
@@ -109,6 +118,12 @@ def fill_lane(players, lanes):
                     continue
 
                 lane = lane_number
+                if full_name in players:
+                    old_power, old_lane = players[full_name]
+                    if 1 <= old_lane <= 3:
+                        old_entry = (full_name, old_power, old_lane)
+                        if old_entry in lanes[old_lane - 1]:
+                            lanes[old_lane - 1].remove(old_entry)
                 players[full_name] = (power, lane)
                 lanes[lane - 1].append((full_name, power, lane))
 
@@ -276,20 +291,25 @@ def display_menu():
 
 
 def main():
-    players = load_players()  # Load players from file at start
+    players = load_players()
     lanes = [[] for _ in range(3)]
-    reserves = []
+    last_redistribution = None
 
-    # Distribute players into initial lanes
     for player, (power, lane) in players.items():
         if 1 <= lane <= 3:
             lanes[lane - 1].append((player, power, lane))
-
     for lane in lanes:
         lane.sort(key=lambda x: x[1], reverse=True)
 
     while True:
-        display_menu()
+        print("\n--- Lane Management System ---")
+        print("1. Fill lane            7. Save player list")
+        print("2. Remove player        8. Load player list")
+        print("3. Rename player        9. Show current lanes (Active)")
+        print("4. Change power         10. Preview Balanced Redistribution")
+        print("5. Player counts        11. SAVE Balanced Redistribution to File")
+        print("6. Clear lanes          12. Exit")
+
         choice = input("Enter your choice: ")
 
         if choice == "1":
@@ -301,42 +321,56 @@ def main():
         elif choice == "4":
             change_player_power(players, lanes)
         elif choice == "5":
-            print("\nPlayer Counts:")
-            for i, lane in enumerate(lanes):
-                print(f"Lane {i + 1}: {len(lane)} players")
+            for i, l in enumerate(lanes):
+                print(f"Lane {i + 1}: {len(l)} players")
         elif choice == "6":
             lanes = [[] for _ in range(3)]
             for name in players:
-                p_power, p_lane = players[name]
-                players[name] = (p_power, 0)
-            print("Lanes cleared. Player data preserved.")
+                p_pwr, p_ln = players[name]
+                players[name] = (p_pwr, 0)
+            print("Lanes cleared.")
         elif choice == "7":
             save_players(players)
         elif choice == "8":
             players = load_players()
             lanes = [[] for _ in range(3)]
-            for player, (power, lane) in players.items():
-                if 1 <= lane <= 3:
-                    lanes[lane - 1].append((player, power, lane))
-            for lane in lanes:
-                lane.sort(key=lambda x: x[1], reverse=True)
+            for p, (pwr, ln) in players.items():
+                if 1 <= ln <= 3: lanes[ln - 1].append((p, pwr, ln))
+            for l in lanes: l.sort(key=lambda x: x[1], reverse=True)
         elif choice == "9":
-            print("\nCurrent Lane Assignments (Top 20 Power counted):")
-            for i, lane in enumerate(lanes):
-                pwr = total_power(lane)
-                count = len(lane)
-                print(f"Lane {i + 1}: {[(p[0], p[1]) for p in lane]} | Count: {count} | Top 20 Power: {pwr}")
+            for i, l in enumerate(lanes):
+                print(f"Lane {i + 1}: {[(p[0], p[1]) for p in l]} | Top 20 Pwr: {total_power(l)}")
+
         elif choice == "10":
-            new_lanes = redistribute_players(lanes)
-            for i, lane in enumerate(new_lanes):
-                pwr = total_power(lane)
-                print(f"Lane {i + 1}: {[(p[0], p[1]) for p in lane]} | Top 20 Power: {pwr}")
+            print("\nSelect Distribution Mode:\n1. Even Distribution (1-1-1)\n2. Power Lane Distribution (2-1-2)")
+            mode_choice = input("Choice (1 or 2): ")
+            mode_str = "1-1-1" if mode_choice == "1" else "2-1-2"
+            last_redistribution = redistribute_players(lanes, mode=mode_str)
+            print(f"\n--- PREVIEW: {mode_str} Redistribution ---")
+            for i, l in enumerate(last_redistribution):
+                display_list = [(p[0], p[1], f"({p[2]})") for p in l]
+                print(f"Lane {i + 1}: {display_list} | Top 20 Pwr: {total_power(l)}")
+            print("\nTo keep these changes, select Option 11.")
+
         elif choice == "11":
-            print("Exiting program.")
+            if last_redistribution is None:
+                print("Error: Please run Option 10 first.")
+            else:
+                for i, new_lane_data in enumerate(last_redistribution):
+                    new_ln_num = i + 1
+                    updated_list = []
+                    for p in new_lane_data:
+                        name, pwr = p[0], p[1]
+                        players[name] = (pwr, new_ln_num)
+                        updated_list.append((name, pwr, new_ln_num))
+                    lanes[i] = updated_list
+                save_players(players)
+                last_redistribution = None
+                print("Redistribution applied and saved successfully!")
+
+        elif choice == "12":
             save_players(players)
             break
-        else:
-            print("Invalid choice. Please enter a number from 1 to 11.")
 
 
 if __name__ == "__main__":
