@@ -90,6 +90,30 @@ def find_players_by_partial_name(partial_name, players):
     return [name for name in players.keys() if partial_name.lower() in name.lower()]
 
 
+def read_non_negative_power(prompt):
+    while True:
+        try:
+            value = int(input(prompt))
+        except ValueError:
+            print("Invalid input. Please enter a valid integer power.")
+            continue
+
+        if value < 0:
+            print("Error: power cannot be negative. Returning to the main menu.")
+            return None
+
+        return value
+
+
+def read_player_name(prompt):
+    while True:
+        name = input(prompt).strip()
+        if "" == name:
+            print("Error: player name cannot be blank. Returning to the main menu.")
+            return None
+        return name
+
+
 # Function to fill a lane with players
 def fill_lane(players, lanes):
     try:
@@ -99,9 +123,12 @@ def fill_lane(players, lanes):
             return
 
         while True:
-            partial_name = input("Enter player name (or 'done' to finish): ")
+            partial_name = input("Enter player name (or 'done' to finish): ").strip()
             if partial_name.lower() == 'done':
                 break
+            if "" == partial_name:
+                print("Error: player name cannot be blank. Returning to the main menu.")
+                return
 
             matching_names = find_players_by_partial_name(partial_name, players)
 
@@ -115,7 +142,9 @@ def fill_lane(players, lanes):
                     change_partial_name = input(
                         f"Change name for '{partial_name}', or quit adding this player? (1 for yes, 2 for no): ")
                     if change_partial_name == '1':
-                        full_name = input("Enter full name to add: ")
+                        full_name = read_player_name("Enter full name to add: ")
+                        if full_name is None:
+                            return
                     elif add_new_player == '2':
                         continue
                     else:
@@ -125,7 +154,9 @@ def fill_lane(players, lanes):
                     print("Invalid choice. Please enter 1 or 2.")
                     continue
 
-                power = int(input("Enter player power: "))
+                power = read_non_negative_power("Enter player power: ")
+                if power is None:
+                    return
                 lane = lane_number
                 players[full_name] = (power, lane)
                 lanes[lane - 1].append((full_name, power, lane))
@@ -134,15 +165,42 @@ def fill_lane(players, lanes):
                 found_name = matching_names[0]
                 print(f"Found player '{found_name}'.")
 
-                power_input = int(
-                    input(f"Enter power for '{found_name}' (or -1 to add '{partial_name}' as a new player): "))
+                power_input = input(
+                    f"Enter power for '{found_name}' (or -1 to add '{partial_name}' as a new player): ")
+                try:
+                    power_value = int(power_input)
+                except ValueError:
+                    print("Invalid input. Please enter a valid integer power.")
+                    continue
 
-                if power_input == -1:
-                    full_name = partial_name
-                    power = int(input(f"Enter power for NEW player '{full_name}': "))
+                if power_value < -1:
+                    print("Error: power cannot be negative. Returning to the main menu.")
+                    return
+
+                if power_value == -1:
+                    while True:
+                        choice = input(
+                            f"Use '{partial_name}' as the NEW player name (1) or enter a different full name (2)? ")
+                        if choice == '1':
+                            full_name = partial_name
+                            break
+                        if choice == '2':
+                            full_name = read_player_name(
+                                f"Enter the full name for the NEW player (instead of '{partial_name}'): ")
+                            if full_name is None:
+                                return
+                            break
+                        print("Invalid choice. Please enter 1 to use the partial name or 2 to enter a new full name.")
+
+                    power = read_non_negative_power(f"Enter power for NEW player '{full_name}': ")
+                    if power is None:
+                        return
                 else:
                     full_name = found_name
-                    power = power_input
+                    power = power_value
+                    if power < 0:
+                        print("Error: power cannot be negative. Returning to the main menu.")
+                        return
 
                 lane = lane_number
                 if full_name in players:
@@ -161,11 +219,17 @@ def fill_lane(players, lanes):
                 choice = int(input("Enter the number of the player you want to use (or 0 to add a new player): "))
 
                 if choice == 0:
-                    full_name = partial_name
-                    power = int(input(f"Enter power for NEW player '{full_name}': "))
+                    full_name = read_player_name(f"Enter the full name for the NEW player (instead of '{partial_name}'): ")
+                    if full_name is None:
+                        return
+                    power = read_non_negative_power(f"Enter power for NEW player '{full_name}': ")
+                    if power is None:
+                        return
                 elif 1 <= choice <= len(matching_names):
                     full_name = matching_names[choice - 1]
-                    power = int(input(f"Enter power for player '{full_name}': "))
+                    power = read_non_negative_power(f"Enter power for player '{full_name}': ")
+                    if power is None:
+                        return
                 else:
                     print("Invalid choice. Please try again.")
                     continue
@@ -198,7 +262,9 @@ def change_player_name(players, lanes):
             print(f"No players found with partial name '{partial_name}'.")
         elif len(matching_names) == 1:
             old_name = matching_names[0]
-            new_name = input(f"Enter new name for player '{old_name}': ")
+            new_name = read_player_name(f"Enter new name for player '{old_name}': ")
+            if new_name is None:
+                return
             power, lane = players.pop(old_name)
             players[new_name] = (power, lane)
             for idx, player in enumerate(lanes[lane - 1]):
@@ -213,7 +279,9 @@ def change_player_name(players, lanes):
             choice = int(input("Enter the number of the player whose name you want to change: "))
             if 1 <= choice <= len(matching_names):
                 old_name = matching_names[choice - 1]
-                new_name = input(f"Enter new name for player '{old_name}': ")
+                new_name = read_player_name(f"Enter new name for player '{old_name}': ")
+                if new_name is None:
+                    return
                 power, lane = players.pop(old_name)
                 players[new_name] = (power, lane)
                 for idx, player in enumerate(lanes[lane - 1]):
@@ -245,7 +313,9 @@ def change_player_power(players, lanes):
                 choice = int(input("Enter the number of the player: "))
                 target_name = matching_names[choice - 1]
 
-            new_power = int(input(f"Enter new power for {target_name}: "))
+            new_power = read_non_negative_power(f"Enter new power for {target_name}: ")
+            if new_power is None:
+                return
             old_power, lane = players[target_name]
             players[target_name] = (new_power, lane)
 
